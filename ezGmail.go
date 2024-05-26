@@ -4,6 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 	"log"
 	"net/http"
@@ -12,11 +16,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/net/context"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/gmail/v1"
 )
 
 // getClient uses a Context and Config to retrieve a Token
@@ -225,19 +224,59 @@ func (gs *GmailService) GetMessages() []*GmailMessage {
 	return gmessages
 }
 
+func (gs *GmailService) GetMessagesAll(getAll bool) []*GmailMessage {
+	messages := gs.GetMessagesRawAll(getAll)
+	var gmessages []*GmailMessage
+	for _, ii := range messages {
+		var m = new(GmailMessage)
+		m.parseMessagePart(ii.Payload, gs)
+		gmessages = append(gmessages, m)
+	}
+	return gmessages
+}
+
 func (gs *GmailService) GetMessagesRaw() []*gmail.Message {
-	var messages []*gmail.Message
-	for _, ii := range gs.GetListOnly().Messages {
+	var (
+		messages      []*gmail.Message
+		nextPageToken = ""
+	)
+	msgs := gs.GetListOnly(nextPageToken)
+	for _, ii := range msgs.Messages {
 		m, err := gs.srv.Users.Messages.Get(gs.sUser, ii.Id).Do()
 		if err != nil {
 			log.Fatalf("Unable to retrieve email messages %v", err)
 		}
 		messages = append(messages, m)
 	}
+
 	return messages
 }
 
-func (gs *GmailService) GetListOnly() *gmail.ListMessagesResponse {
+func (gs *GmailService) GetMessagesRawAll(getAll bool) []*gmail.Message {
+	var (
+		messages      []*gmail.Message
+		nextPageToken = ""
+	)
+	for {
+		msgs := gs.GetListOnly(nextPageToken)
+		for _, ii := range msgs.Messages {
+			m, err := gs.srv.Users.Messages.Get(gs.sUser, ii.Id).Do()
+			if err != nil {
+				log.Fatalf("Unable to retrieve email messages %v", err)
+			}
+			messages = append(messages, m)
+		}
+		if msgs.NextPageToken != "" && getAll {
+			nextPageToken = msgs.NextPageToken
+			continue
+		} else {
+			return messages
+		}
+	}
+	return messages
+}
+
+func (gs *GmailService) GetListOnly(nextPageToken string) *gmail.ListMessagesResponse {
 	qStr := ""
 	gsCall := gs.srv.Users.Messages.List(gs.sUser).MaxResults(gs.iMaxResults)
 	if len(gs.sLabel) > 0 {
@@ -288,6 +327,9 @@ func (gs *GmailService) GetListOnly() *gmail.ListMessagesResponse {
 	}
 	if len(qStr) > 0 {
 		gsCall = gsCall.Q(qStr)
+	}
+	if nextPageToken != "" {
+		gsCall.PageToken(nextPageToken)
 	}
 	do, err := gsCall.Do()
 	if err != nil {
