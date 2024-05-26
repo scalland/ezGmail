@@ -7,7 +7,7 @@ The package is based on the Gmail API,  and so uses OAuth 2.0 authentication,  a
 We wrote this package to enable us to quickly write scripts that process specific messages automatically.  It enables us to setup an automated workflow where we are unable to avoid email as the communication medium.
 
 To download ezGmail and its dependencies,  use the command:
-    ```go get github.com/LDCS/ezGmail```
+    ```go get github.com/scalland/ezGmail```
 
 To allow ezGmail to access a gmail account,  the Gmail API needs to be enabled for that account,  and the client_secret.json file needs to be in the same directory as the main program.
 
@@ -20,7 +20,7 @@ package main
 
 import (
         "fmt"
-	"github.com/LDCS/ezGmail"
+        "github.com/scalland/ezGmail"
 )
 
 func main() {
